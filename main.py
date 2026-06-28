@@ -1,72 +1,22 @@
 from fastapi import FastAPI
-from pydantic import BaseModel
+from routers import students, predictions
 
-app = FastAPI()
+app = FastAPI(
+    title="Stress Detection API",
+    description="Physiological stress detection using ECG, EDA and temperature signals",
+    version="1.0.0"
+)
 
-
-# ── Pydantic model — defines shape of incoming data ──
-class StudentInput(BaseModel):
-    name: str
-    age: int
-    cgpa: float
-
-
-class PredictionInput(BaseModel):
-    heart_rate: float
-    skin_conductance: float
-    temperature: float
+# Register routers
+app.include_router(students.router)
+app.include_router(predictions.router)
 
 
-# ── GET endpoints ─────────────────────────────────────
-@app.get("/")
+@app.get("/", tags=["Health"])
 def read_root():
-    return {"message": "Stress Detection API v1"}
+    return {"message": "Stress Detection API v1", "status": "ok"}
 
 
-@app.get("/student/{name}")
-def get_student(name: str):
-    return {
-        "name": name,
-        "college": "NIT Warangal",
-        "branch": "ECE"
-    }
-
-
-@app.get("/health")
+@app.get("/health", tags=["Health"])
 def health_check():
     return {"status": "ok"}
-
-
-# ── POST endpoints ────────────────────────────────────
-@app.post("/student")
-def create_student(student: StudentInput):
-    return {
-        "message": f"Student {student.name} registered",
-        "data": {
-            "name": student.name,
-            "age": student.age,
-            "cgpa": student.cgpa,
-            "eligible": student.cgpa >= 7.5
-        }
-    }
-
-
-@app.post("/predict")
-def predict_stress(data: PredictionInput):
-    # Simple rule-based prediction (we'll replace with real model later)
-    stress_score = (
-        (data.heart_rate - 70) * 0.4 +
-        data.skin_conductance * 0.4 +
-        (data.temperature - 36.5) * 0.2
-    )
-    level = "high" if stress_score > 5 else "low"
-
-    return {
-        "stress_score": round(stress_score, 2),
-        "stress_level": level,
-        "input_received": {
-            "heart_rate": data.heart_rate,
-            "skin_conductance": data.skin_conductance,
-            "temperature": data.temperature
-        }
-    }
