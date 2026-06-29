@@ -1,18 +1,17 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
+from sqlalchemy.orm import Session
 from models.student import StudentInput, StudentResponse
+from database.connection import get_db
+from database.models import StudentDB
 
 router = APIRouter(prefix="/student", tags=["Students"])
 
-# Fake database for now
-STUDENTS_DB = {
-    "hemanth": {"name": "Hemanth", "college": "NIT Warangal", "branch": "ECE"},
-    "rahul":   {"name": "Rahul",   "college": "IIT Bombay",   "branch": "CS"},
-}
 
-
-@router.get("/{name}")
-def get_student(name: str):
-    student = STUDENTS_DB.get(name.lower())
+@router.get("/{name}", response_model=StudentResponse)
+def get_student(name: str, db: Session = Depends(get_db)):
+    student = db.query(StudentDB).filter(
+        StudentDB.name.ilike(name)  # case-insensitive search
+    ).first()
 
     if not student:
         raise HTTPException(
@@ -24,16 +23,33 @@ def get_student(name: str):
 
 
 @router.post("", response_model=StudentResponse)
-def create_student(student: StudentInput):
-    if student.name.lower() in STUDENTS_DB:
+def create_student(student: StudentInput, db: Session = Depends(get_db)):
+    # Check if already exists
+    existing = db.query(StudentDB).filter(
+        StudentDB.name.ilike(student.name)
+    ).first()
+
+    if existing:
         raise HTTPException(
             status_code=409,
             detail=f"Student '{student.name}' already exists"
         )
 
-    return StudentResponse(
+    # Create database record
+    db_student = StudentDB(
         name=student.name,
         age=student.age,
         cgpa=student.cgpa,
         eligible=student.cgpa >= 7.5
     )
+
+    db.add(db_student)
+    db.commit()
+    db.refresh(db_student)
+
+    return db_student
+
+
+@router.get("", response_model=list[StudentResponse])
+def get_all_students(db: Session = Depends(get_db)):
+    return db.query(StudentDB).all()
